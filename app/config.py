@@ -21,7 +21,23 @@ def _database_url(name: str) -> str | None:
     return url
 
 
+_API_DESCRIPTION = """API REST de agendamento para pequenos negócios (salões, clínicas, oficinas).
+
+**Como testar aqui no Swagger**
+1. `POST /api/v1/auth/register` para criar sua conta (ou use o usuário de demonstração do `flask seed`).
+2. `POST /api/v1/auth/login` e copie o `access_token`.
+3. Clique em **Authorize** e cole o token (sem a palavra `Bearer`).
+
+**Convenções**
+- Datas em ISO 8601. Na entrada o fuso é obrigatório (`2030-01-10T09:00:00-03:00`); na saída tudo vem em UTC.
+- Erros seguem sempre o formato `{"error": {"code", "message", "details"}}`.
+- Recursos de outro usuário respondem `404`, como se não existissem.
+"""  # noqa: E501
+
+
 class Config:
+    ENV_NAME = "development"
+
     SQLALCHEMY_DATABASE_URI = _database_url("DATABASE_URL")
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
@@ -44,13 +60,19 @@ class Config:
     OPENAPI_URL_PREFIX = "/"
     OPENAPI_SWAGGER_UI_PATH = "/docs"
     OPENAPI_SWAGGER_UI_URL = "https://cdn.jsdelivr.net/npm/swagger-ui-dist/"
+    API_SPEC_OPTIONS = {
+        "info": {"description": _API_DESCRIPTION},
+        "servers": [{"url": "/", "description": "Servidor atual"}],
+    }
 
 
 class DevelopmentConfig(Config):
+    ENV_NAME = "development"
     DEBUG = True
 
 
 class TestingConfig(Config):
+    ENV_NAME = "testing"
     TESTING = True
     RATELIMIT_ENABLED = False
     SQLALCHEMY_DATABASE_URI = _database_url("TEST_DATABASE_URL")
@@ -59,6 +81,7 @@ class TestingConfig(Config):
 
 
 class ProductionConfig(Config):
+    ENV_NAME = "production"
     DEBUG = False
 
 

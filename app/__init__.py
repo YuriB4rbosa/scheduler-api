@@ -2,6 +2,7 @@
 
 from flask import Flask
 
+from app.cli import register_cli
 from app.config import Config, get_config
 from app.error_handlers import register_error_handlers
 from app.extensions import api, db, jwt, limiter, migrate
@@ -30,6 +31,7 @@ def create_app(config: type[Config] | None = None) -> Flask:
         "bearerAuth", {"type": "http", "scheme": "bearer", "bearerFormat": "JWT"}
     )
     register_blueprints(api)
+    register_cli(app)
     register_error_handlers(app)  # depois do smorest: substitui o handler de erros dele
 
     from app import models  # noqa: F401  (registra as tabelas para o Alembic)

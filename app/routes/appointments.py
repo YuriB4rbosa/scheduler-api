@@ -5,6 +5,7 @@ from flask_smorest import Blueprint
 from marshmallow import RAISE
 
 from app.auth import current_user_id
+from app.routes import examples as ex
 from app.routes._common import protected
 from app.schemas.appointment import (
     AppointmentCreateSchema,
@@ -40,16 +41,25 @@ class AppointmentList(MethodView):
         return appointment_service.list_appointments(current_user_id(), **args)
 
     @protected(blp)
-    @blp.arguments(AppointmentCreateSchema)
-    @blp.response(201, AppointmentSchema)
+    @blp.arguments(AppointmentCreateSchema, example=ex.APPOINTMENT_REQUEST)
+    @blp.response(201, AppointmentSchema, example=ex.APPOINTMENT_RESPONSE)
     @blp.alt_response(
-        404, schema=ErrorResponseSchema, description="Cliente ou serviço não encontrado."
+        404,
+        schema=ErrorResponseSchema,
+        description="Cliente ou serviço não encontrado.",
+        example=ex.error("CUSTOMER_NOT_FOUND", "Customer not found."),
     )
-    @blp.alt_response(409, schema=ErrorResponseSchema, description=_CONFLICT)
+    @blp.alt_response(
+        409, schema=ErrorResponseSchema, description=_CONFLICT, example=ex.APPOINTMENT_CONFLICT
+    )
     @blp.alt_response(
         422,
         schema=ErrorResponseSchema,
         description="Horário no passado, serviço inativo ou dados inválidos.",
+        examples={
+            "validacao": {"summary": "Campos inválidos", "value": ex.VALIDATION_ERROR},
+            "passado": {"summary": "Horário no passado", "value": ex.APPOINTMENT_PAST},
+        },
     )
     def post(self, data: dict[str, Any]) -> Any:
         """Cria um agendamento. O término é calculado pela duração do serviço."""
@@ -59,8 +69,8 @@ class AppointmentList(MethodView):
 @blp.route("/<int:appointment_id>")
 class AppointmentDetail(MethodView):
     @protected(blp)
-    @blp.response(200, AppointmentSchema)
-    @blp.alt_response(404, schema=ErrorResponseSchema, description=_NOT_FOUND)
+    @blp.response(200, AppointmentSchema, example=ex.APPOINTMENT_RESPONSE)
+    @blp.alt_response(404, schema=ErrorResponseSchema, description=_NOT_FOUND, example=ex.NOT_FOUND)
     def get(self, appointment_id: int) -> Any:
         """Detalha um agendamento."""
         return appointment_service.get_appointment(current_user_id(), appointment_id)
@@ -92,7 +102,12 @@ class AppointmentCancel(MethodView):
     @protected(blp)
     @blp.response(200, AppointmentSchema)
     @blp.alt_response(404, schema=ErrorResponseSchema, description=_NOT_FOUND)
-    @blp.alt_response(409, schema=ErrorResponseSchema, description="Transição de status inválida.")
+    @blp.alt_response(
+        409,
+        schema=ErrorResponseSchema,
+        description="Transição de status inválida.",
+        example=ex.INVALID_TRANSITION,
+    )
     def post(self, appointment_id: int) -> Any:
         """Cancela um agendamento ativo e libera o horário."""
         return appointment_service.cancel_appointment(current_user_id(), appointment_id)

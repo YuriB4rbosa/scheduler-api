@@ -4,6 +4,7 @@ from typing import Any
 from flask_jwt_extended import jwt_required
 from flask_smorest import Blueprint
 
+from app.routes.examples import UNAUTHORIZED
 from app.schemas.common import ErrorResponseSchema
 
 BEARER = [{"bearerAuth": []}]
@@ -14,7 +15,10 @@ def protected(blp: Blueprint) -> Callable[[Callable[..., Any]], Callable[..., An
 
     def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         func = blp.alt_response(
-            401, schema=ErrorResponseSchema, description="Token ausente, inválido ou expirado."
+            401,
+            schema=ErrorResponseSchema,
+            description="Token ausente, inválido ou expirado.",
+            example=UNAUTHORIZED,
         )(func)
         func = blp.doc(security=BEARER)(func)
         return jwt_required()(func)

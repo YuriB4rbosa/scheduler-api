@@ -7,6 +7,7 @@ from flask_smorest import Blueprint
 
 from app.auth import current_user, current_user_id
 from app.extensions import limiter
+from app.routes import examples as ex
 from app.schemas.auth import (
     AccessTokenSchema,
     LoginSchema,
@@ -34,9 +35,11 @@ def _auth_rate_limit() -> str:
 @blp.route("/register")
 class Register(MethodView):
     @limiter.limit(_auth_rate_limit)
-    @blp.arguments(RegisterSchema)
-    @blp.response(201, UserSchema)
-    @blp.alt_response(409, schema=ErrorResponseSchema, description="E-mail já cadastrado.")
+    @blp.arguments(RegisterSchema, example=ex.REGISTER_REQUEST)
+    @blp.response(201, UserSchema, example=ex.REGISTER_RESPONSE)
+    @blp.alt_response(
+        409, schema=ErrorResponseSchema, description="E-mail já cadastrado.", example=ex.EMAIL_TAKEN
+    )
     def post(self, data: dict[str, Any]) -> Any:
         """Cadastra um novo usuário (dono de negócio)."""
         return auth_service.register_user(**data)
@@ -45,9 +48,14 @@ class Register(MethodView):
 @blp.route("/login")
 class Login(MethodView):
     @limiter.limit(_auth_rate_limit)
-    @blp.arguments(LoginSchema)
-    @blp.response(200, TokenPairSchema)
-    @blp.alt_response(401, schema=ErrorResponseSchema, description="Credenciais inválidas.")
+    @blp.arguments(LoginSchema, example=ex.LOGIN_REQUEST)
+    @blp.response(200, TokenPairSchema, example=ex.LOGIN_RESPONSE)
+    @blp.alt_response(
+        401,
+        schema=ErrorResponseSchema,
+        description="Credenciais inválidas.",
+        example=ex.INVALID_CREDENTIALS,
+    )
     def post(self, data: dict[str, Any]) -> Any:
         """Autentica e devolve um access token (curto) e um refresh token."""
         user = auth_service.authenticate(**data)
