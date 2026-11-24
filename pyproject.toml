@@ -17,7 +17,11 @@ select = ["E", "F", "W", "I", "B", "UP", "S", "C4", "SIM"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q"
+addopts = "-q --cov --cov-report=term-missing:skip-covered --cov-report=xml"
+filterwarnings = [
+    # Ex.: schemas duplicados no OpenAPI viram erro em vez de passar despercebidos.
+    "error::UserWarning",
+]
 
 [tool.coverage.run]
 source = ["app"]
