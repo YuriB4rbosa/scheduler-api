@@ -4,7 +4,7 @@ API REST de agendamento para pequenos negócios (salões, clínicas, oficinas). 
 seus clientes e serviços e gerencia a agenda, com a garantia de que **dois atendimentos ativos nunca
 se sobrepõem no mesmo horário**.
 
-[![CI](https://github.com/OWNER/REPO/actions/workflows/ci.yml/badge.svg)](https://github.com/OWNER/REPO/actions/workflows/ci.yml)
+[![CI](https://github.com/YuriB4rbosa/scheduler-api/actions/workflows/ci.yml/badge.svg)](https://github.com/YuriB4rbosa/scheduler-api/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.12%2B-blue)
 ![Flask](https://img.shields.io/badge/flask-3.1-lightgrey)
 ![PostgreSQL](https://img.shields.io/badge/postgresql-16-336791)
@@ -44,7 +44,7 @@ documentação gerada a partir do código e decisões registradas (com seus trad
 Pré-requisito: **Docker**. Não precisa de Python, `.env` nem de configuração.
 
 ```bash
-git clone <url-do-repositorio> && cd <pasta>
+git clone https://github.com/YuriB4rbosa/scheduler-api.git && cd scheduler-api
 docker compose up --build           # sobe a API (porta 8000) e o PostgreSQL; aplica as migrations
 docker compose exec api flask seed  # em outro terminal: dados de demonstração (opcional)
 ```
@@ -61,7 +61,7 @@ A API fica em `http://localhost:8000` e o Swagger em **http://localhost:8000/doc
 Pré-requisitos: **Python 3.12+** e **Docker** (usado apenas para o PostgreSQL).
 
 ```bash
-git clone <url-do-repositorio> && cd <pasta>
+git clone https://github.com/YuriB4rbosa/scheduler-api.git && cd scheduler-api
 
 python -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
@@ -247,8 +247,6 @@ O workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) roda a cada pu
 | **Lint** | `ruff check` e `ruff format --check` (Python 3.12) |
 | **Testes** | `pytest` contra um PostgreSQL 16 (service container); falha se a cobertura ficar abaixo de 80%; publica `coverage.xml` e um resumo da cobertura |
 | **Docker** | Constrói a imagem, sobe a stack com `docker compose up --wait`, faz um smoke test pela API (cadastro, login, `/auth/me`, `/docs`), roda o seed e confirma que a API **recusa subir em produção com chaves de exemplo** |
-
-> Para ativar o badge de CI no topo, troque `OWNER/REPO` pelo caminho do seu repositório no GitHub.
 
 ## Deploy no Render
 
