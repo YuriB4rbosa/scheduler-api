@@ -1,0 +1,42 @@
+# Blueprint do Render (infraestrutura como código).
+# Dashboard > New > Blueprint > selecione este repositório. Veja "Deploy" no README.
+
+databases:
+  - name: scheduler-db
+    plan: free # Atenção: o Postgres gratuito do Render expira após 30 dias.
+    databaseName: scheduler
+    user: scheduler
+    region: oregon
+
+services:
+  - type: web
+    name: scheduler-api
+    runtime: docker # usa o Dockerfile da raiz
+    plan: free # hiberna após 15 min sem tráfego (a 1ª requisição depois disso é lenta)
+    region: oregon # mesma região do banco (conexão pela rede interna)
+    autoDeployTrigger: commit
+    healthCheckPath: /health
+    envVars:
+      - key: APP_ENV
+        value: production
+      # Em produção a aplicação RECUSA subir com chaves fracas ou de exemplo.
+      # generateValue cria um valor aleatório de 256 bits (base64) no primeiro deploy.
+      - key: SECRET_KEY
+        generateValue: true
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: scheduler-db
+          property: connectionString
+      # O Render coloca exatamente um proxy na frente da aplicação (necessário para o
+      # rate limit enxergar o IP real do cliente).
+      - key: TRUSTED_PROXY_COUNT
+        value: "1"
+      # As migrations rodam no start do container (docker/entrypoint.sh), pois o
+      # preDeployCommand do Render não está disponível no plano gratuito.
+      - key: RUN_MIGRATIONS
+        value: "1"
+      # Uma instância gratuita tem 0,1 CPU: 2 workers bastam.
+      - key: WEB_CONCURRENCY
+        value: "2"

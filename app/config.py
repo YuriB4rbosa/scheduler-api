@@ -41,6 +41,10 @@ class Config:
     SQLALCHEMY_DATABASE_URI = _database_url("DATABASE_URL")
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
+    # Quantos proxies reversos confiáveis existem na frente da app (0 = nenhum). Define se
+    # X-Forwarded-For/Proto/Host são respeitados; sem isso o rate limit veria o IP do proxy.
+    TRUSTED_PROXY_COUNT = int(os.environ.get("TRUSTED_PROXY_COUNT", 0))
+
     SECRET_KEY = os.environ.get("SECRET_KEY")
     JWT_SECRET_KEY = os.environ.get("JWT_SECRET_KEY")
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(
@@ -67,8 +71,9 @@ class Config:
 
 
 class DevelopmentConfig(Config):
+    # Sem DEBUG=True de propósito: sob o gunicorn ele ligaria o modo debug do Flask.
+    # Para depurar localmente use `flask run --debug`.
     ENV_NAME = "development"
-    DEBUG = True
 
 
 class TestingConfig(Config):
@@ -83,6 +88,8 @@ class TestingConfig(Config):
 class ProductionConfig(Config):
     ENV_NAME = "production"
     DEBUG = False
+    # Render/Railway colocam exatamente um proxy na frente da aplicação.
+    TRUSTED_PROXY_COUNT = int(os.environ.get("TRUSTED_PROXY_COUNT", 1))
 
 
 CONFIGS: dict[str, type[Config]] = {

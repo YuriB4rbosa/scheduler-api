@@ -133,3 +133,57 @@ def test_relative_links_point_to_existing_files(path: Path) -> None:
             continue
         file_part = target.split("#")[0]
         assert (path.parent / file_part).resolve().exists(), f"{path.name}: link quebrado {target}"
+
+
+# ---------- deploy ----------
+
+# Lidas só pelo container (docker/entrypoint.sh), não pelo código Python.
+CONTAINER_VARS = {"PORT", "WEB_CONCURRENCY", "RUN_MIGRATIONS"}
+
+
+def _env_vars_read_by_code() -> set[str]:
+    names: set[str] = set()
+    for source in (ROOT / "app").rglob("*.py"):
+        code = source.read_text(encoding="utf-8")
+        # leituras diretas (os.environ.get("X")) e via helper (_database_url("X"))
+        names |= set(re.findall(r'(?:environ\.get|_database_url)\(\s*"([A-Z_]+)"', code))
+    return names
+
+
+def test_env_example_documents_every_variable_the_code_reads() -> None:
+    example = (ROOT / ".env.example").read_text(encoding="utf-8")
+    # vale a variável ativa (X=...) e a documentada em comentário (# X=...)
+    documented = set(re.findall(r"^#?\s*([A-Z_]+)=", example, re.MULTILINE))
+    missing = _env_vars_read_by_code() - documented
+    assert missing == set(), f"Variáveis lidas no código e ausentes do .env.example: {missing}"
+
+
+def test_entrypoint_uses_unix_line_endings() -> None:
+    """CRLF no shebang faz o container falhar com 'bad interpreter' (comum ao clonar no Windows)."""
+    script = (ROOT / "docker" / "entrypoint.sh").read_bytes()
+    assert script.startswith(b"#!/bin/sh\n")
+    assert b"\r" not in script
+    assert "eol=lf" in (ROOT / ".gitattributes").read_text(encoding="utf-8")
+
+
+def test_render_blueprint_matches_the_application() -> None:
+    blueprint = (ROOT / "render.yaml").read_text(encoding="utf-8")
+    keys = set(re.findall(r"- key: ([A-Z_]+)", blueprint))
+
+    known = _env_vars_read_by_code() | CONTAINER_VARS
+    assert keys <= known, f"render.yaml define variáveis que a app não lê: {keys - known}"
+    # sem estas a aplicação não sobe em produção
+    assert {"APP_ENV", "SECRET_KEY", "JWT_SECRET_KEY", "DATABASE_URL"} <= keys
+
+    assert "runtime: docker" in blueprint
+    assert "value: production" in blueprint
+    path = re.search(r"healthCheckPath: (\S+)", blueprint).group(1)
+    assert path == "/health"
+
+
+def test_render_blueprint_never_contains_literal_secrets() -> None:
+    blueprint = (ROOT / "render.yaml").read_text(encoding="utf-8")
+    for secret in ("SECRET_KEY", "JWT_SECRET_KEY"):
+        block = blueprint.split(f"- key: {secret}")[1].split("- key:")[0]
+        assert "generateValue: true" in block
+        assert "value:" not in block

@@ -4,6 +4,7 @@ API REST de agendamento para pequenos negócios (salões, clínicas, oficinas). 
 seus clientes e serviços e gerencia a agenda, com a garantia de que **dois atendimentos ativos nunca
 se sobrepõem no mesmo horário**.
 
+[![CI](https://github.com/OWNER/REPO/actions/workflows/ci.yml/badge.svg)](https://github.com/OWNER/REPO/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.12%2B-blue)
 ![Flask](https://img.shields.io/badge/flask-3.1-lightgrey)
 ![PostgreSQL](https://img.shields.io/badge/postgresql-16-336791)
@@ -36,7 +37,26 @@ documentação gerada a partir do código e decisões registradas (com seus trad
 | Segurança | Flask-Limiter, segredos só em variáveis de ambiente |
 | Qualidade | pytest, pytest-cov, ruff (lint + formatação) |
 
-## Como rodar localmente
+## Como rodar
+
+### Com Docker (mais rápido)
+
+Pré-requisito: **Docker**. Não precisa de Python, `.env` nem de configuração.
+
+```bash
+git clone <url-do-repositorio> && cd <pasta>
+docker compose up --build           # sobe a API (porta 8000) e o PostgreSQL; aplica as migrations
+docker compose exec api flask seed  # em outro terminal: dados de demonstração (opcional)
+```
+
+A API fica em `http://localhost:8000` e o Swagger em **http://localhost:8000/docs**. Para parar:
+`docker compose down` (acrescente `-v` para apagar também os dados do banco).
+
+> As chaves usadas aqui são valores de **demonstração local** definidos no `docker-compose.yml`
+> (`APP_ENV=development`). Com `APP_ENV=production` a API recusa chaves de exemplo ou curtas e não sobe.
+> Para usar as suas, defina `SECRET_KEY` e `JWT_SECRET_KEY` no shell ou em um `.env`.
+
+### Localmente (para desenvolver)
 
 Pré-requisitos: **Python 3.12+** e **Docker** (usado apenas para o PostgreSQL).
 
@@ -48,11 +68,11 @@ source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -r requirements-dev.txt
 
 cp .env.example .env               # depois, gere chaves próprias (veja "Variáveis de ambiente")
-docker compose up -d db            # PostgreSQL em localhost:5433 (+ banco scheduler_test)
+docker compose up -d db            # só o PostgreSQL, em localhost:5433 (+ banco scheduler_test)
 
 flask db upgrade                   # cria as tabelas
 flask seed                         # dados de demonstração (opcional)
-flask run --port 8000
+flask run --port 8000          # use --debug para recarregar o código ao editar
 ```
 
 Pronto: a API está em `http://localhost:8000` e o Swagger em **http://localhost:8000/docs**.
@@ -83,8 +103,12 @@ Veja o [`.env.example`](.env.example). Segredos nunca ficam no código, e o `.en
 | `AUTH_RATE_LIMIT` | não | Limite em login/cadastro por IP (padrão `10 per minute`). |
 | `RATELIMIT_STORAGE_URI` | não | Armazenamento do limitador (padrão `memory://`; use Redis com vários workers). |
 | `SEED_DEMO_PASSWORD` | para o seed fora de dev | Senha do usuário de demonstração. |
+| `TRUSTED_PROXY_COUNT` | não | Proxies confiáveis na frente da API (padrão: `0`; em `production`, `1`). Faz o rate limit enxergar o IP real. |
 
 Para gerar uma chave: `python -c "import secrets; print(secrets.token_hex(32))"`.
+
+Em `APP_ENV=production` a aplicação **se recusa a iniciar** se `SECRET_KEY`/`JWT_SECRET_KEY` tiverem menos de
+32 caracteres, forem iguais entre si ou parecerem valores de exemplo (`change-me...`).
 
 ## Endpoints
 
@@ -136,7 +160,7 @@ curl -s -X POST $API/api/v1/auth/register -H "$JSON" \
 
 TOKEN=$(curl -s -X POST $API/api/v1/auth/login -H "$JSON" \
   -d '{"email":"ana@salao.com","password":"senha-segura-123"}' \
-  | grep -o '"access_token":"[^"]*"' | cut -d'"' -f4)
+  | grep -o '"access_token": *"[^"]*"' | cut -d'"' -f4)
 AUTH="Authorization: Bearer $TOKEN"
 ```
 
@@ -144,11 +168,11 @@ AUTH="Authorization: Bearer $TOKEN"
 # 2. Cadastrar um cliente e um serviço (guardando os ids retornados)
 CUSTOMER_ID=$(curl -s -X POST $API/api/v1/customers -H "$JSON" -H "$AUTH" \
   -d '{"name":"Maria Oliveira","phone":"+55 11 98888-7777","email":"maria@email.com"}' \
-  | grep -o '"id":[0-9]*' | cut -d: -f2)
+  | grep -o '"id": *[0-9]*' | head -1 | grep -o '[0-9]*$')
 
 SERVICE_ID=$(curl -s -X POST $API/api/v1/services -H "$JSON" -H "$AUTH" \
   -d '{"name":"Corte de cabelo","duration_minutes":45,"price":"60.00"}' \
-  | grep -o '"id":[0-9]*' | cut -d: -f2)
+  | grep -o '"id": *[0-9]*' | head -1 | grep -o '[0-9]*$')
 ```
 
 ```bash
@@ -214,6 +238,62 @@ outra chave e expirado; refresh usado no lugar de access; acesso a dado de outro
 horário (bordas, corrida entre requisições simultâneas e fallback do banco); transições de status;
 e a equivalência entre migrations e models.
 
+## Integração contínua
+
+O workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) roda a cada push e pull request:
+
+| Job | O que faz |
+|---|---|
+| **Lint** | `ruff check` e `ruff format --check` (Python 3.12) |
+| **Testes** | `pytest` contra um PostgreSQL 16 (service container); falha se a cobertura ficar abaixo de 80%; publica `coverage.xml` e um resumo da cobertura |
+| **Docker** | Constrói a imagem, sobe a stack com `docker compose up --wait`, faz um smoke test pela API (cadastro, login, `/auth/me`, `/docs`), roda o seed e confirma que a API **recusa subir em produção com chaves de exemplo** |
+
+> Para ativar o badge de CI no topo, troque `OWNER/REPO` pelo caminho do seu repositório no GitHub.
+
+## Deploy no Render
+
+O repositório já traz o [`render.yaml`](render.yaml) (Blueprint), que cria o banco PostgreSQL e o
+serviço web a partir do `Dockerfile`. Não é necessário configurar nada à mão.
+
+1. Envie o código para um repositório no GitHub.
+2. No [Render](https://render.com): **New > Blueprint**, escolha o repositório e confirme (**Apply**).
+3. Aguarde o primeiro deploy. O container aplica as migrations ao iniciar (`flask db upgrade`) e só
+   fica saudável quando o `GET /health` responde.
+4. Acesse `https://<nome-do-servico>.onrender.com/docs` e crie sua conta em `POST /api/v1/auth/register`.
+
+O que o Blueprint configura:
+
+| Variável | Valor |
+|---|---|
+| `APP_ENV` | `production` |
+| `SECRET_KEY`, `JWT_SECRET_KEY` | gerados pelo Render (aleatórios, 256 bits, **distintos**); nunca ficam no repositório |
+| `DATABASE_URL` | string de conexão do banco criado pelo Blueprint |
+| `TRUSTED_PROXY_COUNT` | `1` (o Render põe um proxy na frente; sem isso o rate limit veria o IP do proxy) |
+| `RUN_MIGRATIONS` / `WEB_CONCURRENCY` | `1` / `2` |
+
+Pontos de atenção do **plano gratuito** (confira os limites atuais na
+[documentação do Render](https://render.com/docs/free)):
+
+- O serviço **hiberna após 15 min sem tráfego**; a primeira requisição depois disso demora.
+- O PostgreSQL gratuito **expira 30 dias após a criação** (há uma carência para fazer upgrade antes de
+  os dados serem apagados) e só pode existir um por conta. Serve para demonstração, não para dados reais.
+- As migrations rodam no start do container porque o `preDeployCommand` do Render é exclusivo de planos pagos.
+- O `flask seed` é **bloqueado em produção** de propósito: não existe usuário de demonstração publicado.
+- Trocar `JWT_SECRET_KEY` invalida todos os tokens já emitidos.
+
+Campos do Blueprint: [referência oficial](https://render.com/docs/blueprint-spec). O arquivo foi
+validado contra o schema JSON publicado pelo Render.
+
+<details>
+<summary>Railway (alternativa, não validada nesta entrega)</summary>
+
+O Railway também constrói a partir do `Dockerfile`. Crie um projeto a partir do repositório, adicione um
+banco PostgreSQL e defina no serviço: `APP_ENV=production`, `SECRET_KEY` e `JWT_SECRET_KEY` (valores
+aleatórios e distintos), `TRUSTED_PROXY_COUNT=1` e `DATABASE_URL=${{Postgres.DATABASE_URL}}`
+(referência à variável do banco). O `PORT` é injetado pela plataforma e o healthcheck é `/health`.
+
+</details>
+
 ## Estrutura do projeto
 
 ```
@@ -222,6 +302,7 @@ app/
   schemas/     validação e serialização         services/  regras de negócio
   config.py · extensions.py · errors.py · error_handlers.py · cli.py
 migrations/    Alembic          tests/    unitários e de integração          docs/    documentação
+Dockerfile · docker-compose.yml · docker/entrypoint.sh · render.yaml · .github/workflows/ci.yml
 ```
 
 ## Documentação

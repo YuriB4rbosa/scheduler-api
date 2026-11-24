@@ -19,7 +19,8 @@ feito, e sim registrar *por que* e *o que se perde* com cada escolha.
 12. [Estratégia de testes](#12-estratégia-de-testes)
 13. [Lint e formatação](#13-lint-e-formatação)
 14. [Seed seguro](#14-seed-seguro)
-15. [Limitações conhecidas e próximos passos](#15-limitações-conhecidas-e-próximos-passos)
+15. [Container, CI e deploy](#15-container-ci-e-deploy)
+16. [Limitações conhecidas e próximos passos](#16-limitações-conhecidas-e-próximos-passos)
 
 ---
 
@@ -111,7 +112,7 @@ consistente e os estados inválidos são impossíveis de alcançar pela API.
   única; a violação vira `409` em vez de `500`.
 
 **Trade-off.** JWT é *stateless*: não há como revogar um token antes de expirar (ver
-[limitações](#15-limitações-conhecidas-e-próximos-passos)). O access token curto mitiga, mas não elimina.
+[limitações](#16-limitações-conhecidas-e-próximos-passos)). O access token curto mitiga, mas não elimina.
 
 ## 6. Rate limiting em memória
 
@@ -121,7 +122,9 @@ força bruta. Excedido: `429 RATE_LIMITED` no formato padrão.
 **Trade-off.** O contador em memória é **por processo**: com vários workers do gunicorn o limite
 efetivo é multiplicado. Para produção com vários processos, apontar `RATELIMIT_STORAGE_URI` para Redis.
 Atrás de proxy (Render/Railway) o IP visto pelo Flask é o do proxy, então o limite valeria para todos
-os usuários juntos; em deploy é preciso ler o IP real do cabeçalho `X-Forwarded-For` (`ProxyFix`).
+os usuários juntos. Por isso `TRUSTED_PROXY_COUNT` configura o `ProxyFix` (padrão `0`; em produção `1`).
+Se a aplicação confiasse em `X-Forwarded-For` sem proxy, qualquer cliente forjaria o próprio IP e fugiria
+do limite; com `1`, só o último salto (o que o proxy anexou) vale. Ambos os casos têm teste.
 
 ## 7. Formato de erro único
 
@@ -233,7 +236,37 @@ praticamente compatível com o black e roda em uma única ferramenta e uma únic
 **Trade-off.** Um login de demonstração é conveniente para quem avalia o projeto, mas é um risco se
 existir em produção; por isso as travas acima.
 
-## 15. Limitações conhecidas e próximos passos
+## 15. Container, CI e deploy
+
+**Imagem.** Dockerfile em dois estágios: o primeiro instala as dependências em um venv, o segundo copia só
+o venv e o código da aplicação (sem testes, docs, `.git` nem `.env`, garantido pelo `.dockerignore`).
+O processo roda como **usuário sem privilégios** (`uid 10001`) com **gunicorn**, e a imagem tem
+`HEALTHCHECK` próprio.
+
+**Migrations no start do container.** O `entrypoint.sh` roda `flask db upgrade` e depois inicia o servidor.
+Alternativa melhor em planos pagos: `preDeployCommand` (migrar uma vez, antes de trocar a versão). No plano
+gratuito do Render ele não existe. *Trade-off:* com várias instâncias subindo ao mesmo tempo, todas tentam
+migrar e não há exclusão mútua entre elas: uma pode falhar e o container reinicia. Com uma instância (o caso
+do plano gratuito) isso não ocorre; com mais, o correto é migrar em um passo separado.
+
+**Falhar cedo em produção.** Com `APP_ENV=production`, a aplicação **se recusa a iniciar** se as chaves
+forem curtas (< 32), iguais entre si ou começarem com marcadores de exemplo (`change-me`, `dev-only`...).
+A mensagem orienta como gerar uma chave, mas nunca imprime o valor configurado. O CI prova isso subindo o
+container em produção com as chaves de demonstração e exigindo que ele falhe.
+
+**Sem `DEBUG=True` na configuração.** Sob o gunicorn ele ligaria o modo debug do Flask. Para depurar,
+`flask run --debug`.
+
+**CI com três jobs.** Lint, testes (PostgreSQL como service container, cobertura mínima de 80% imposta) e
+um smoke test do Docker que valida o que os testes de unidade não veem: o `Dockerfile`, o entrypoint, as
+migrations em um banco vazio e a stack real.
+
+**Deploy declarativo.** O `render.yaml` descreve banco e serviço; as chaves são geradas pelo Render
+(`generateValue`) e a conexão do banco é injetada (`fromDatabase`). Há testes que impedem o Blueprint de
+definir variáveis que a aplicação não lê ou de conter segredos literais, e o arquivo foi validado contra o
+schema JSON oficial do Render.
+
+## 16. Limitações conhecidas e próximos passos
 
 O que ficou **de fora de propósito** (e o que faria depois):
 
@@ -245,5 +278,6 @@ O que ficou **de fora de propósito** (e o que faria depois):
 | Sem horário de funcionamento nem disponibilidade | Escopo | Regras de expediente e endpoint de horários livres |
 | Paginação por *offset* | Suficiente para o volume | Paginação por cursor se as tabelas crescerem muito |
 | Sem exclusão lógica (*soft delete*) | Histórico já é preservado por status e `RESTRICT` | Soft delete se houver exigência legal de retenção |
+| Migrations rodam no start do container | Plano gratuito do Render não tem `preDeployCommand` | `preDeployCommand` (ou job de migração) assim que houver mais de uma instância |
 | Sem notificações (e-mail/SMS) | Escopo | Fila de tarefas + lembretes de agendamento |
 | Fuso do negócio não é guardado | A API fala UTC/ISO com fuso | Campo de fuso no usuário para relatórios por dia local |

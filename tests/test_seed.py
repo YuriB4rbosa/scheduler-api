@@ -133,8 +133,8 @@ def test_cli_seed_requires_password_outside_development(
 def test_cli_seed_is_blocked_in_production(monkeypatch: pytest.MonkeyPatch) -> None:
     class Production(ProductionConfig):
         SQLALCHEMY_DATABASE_URI = TestingConfig.SQLALCHEMY_DATABASE_URI
-        SECRET_KEY = "x"  # noqa: S105
-        JWT_SECRET_KEY = "y" * 32  # noqa: S105
+        SECRET_KEY = "k1-" + "a" * 40  # noqa: S105
+        JWT_SECRET_KEY = "k2-" + "b" * 40  # noqa: S105
 
     monkeypatch.setenv("SEED_DEMO_PASSWORD", PASSWORD)  # mesmo com senha definida, bloqueia
     result = create_app(Production).test_cli_runner().invoke(args=["seed"])

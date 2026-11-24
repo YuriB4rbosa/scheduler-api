@@ -6,7 +6,7 @@ services:
       POSTGRES_PASSWORD: scheduler
       POSTGRES_DB: scheduler
     ports:
-      - "5433:5432"
+      - "5433:5432" # 5433 no host: a 5432 costuma estar ocupada por um Postgres local
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./docker/initdb:/docker-entrypoint-initdb.d:ro
@@ -15,6 +15,23 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+
+  api:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    environment:
+      # Modo de demonstração local: permite o `flask seed` e aceita as chaves abaixo.
+      # Em produção (APP_ENV=production) chaves de exemplo são RECUSADAS na inicialização.
+      APP_ENV: ${APP_ENV:-development}
+      SECRET_KEY: ${SECRET_KEY:-local-demo-only-secret-key-0123456789abcdef}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-local-demo-only-jwt-key-fedcba9876543210}
+      # Dentro da rede do compose o banco é "db:5432" (não localhost:5433).
+      DATABASE_URL: postgresql+psycopg://scheduler:scheduler@db:5432/scheduler
+      WEB_CONCURRENCY: "2"
 
 volumes:
   pgdata:

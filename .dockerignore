@@ -1,0 +1,24 @@
+# Nada disto deve entrar na imagem (principalmente segredos)
+.git
+.gitignore
+.gitattributes
+.github
+.env
+.env.*
+!.env.example
+
+.venv
+venv
+__pycache__
+*.py[cod]
+.pytest_cache
+.ruff_cache
+.coverage
+coverage.xml
+htmlcov
+
+tests
+docs
+README.md
+docker-compose.yml
+render.yaml
