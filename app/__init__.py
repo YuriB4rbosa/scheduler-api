@@ -3,7 +3,10 @@
 from flask import Flask
 
 from app.config import Config, get_config
-from app.extensions import db, jwt, migrate
+from app.error_handlers import register_error_handlers
+from app.extensions import api, db, jwt, limiter, migrate
+from app.routes import register_blueprints
+from app.schemas.common import ErrorResponseSchema
 
 
 def create_app(config: type[Config] | None = None) -> Flask:
@@ -19,6 +22,15 @@ def create_app(config: type[Config] | None = None) -> Flask:
     db.init_app(app)
     migrate.init_app(app, db)
     jwt.init_app(app)
+    limiter.init_app(app)
+
+    api.ERROR_SCHEMA = ErrorResponseSchema
+    api.init_app(app)
+    api.spec.components.security_scheme(
+        "bearerAuth", {"type": "http", "scheme": "bearer", "bearerFormat": "JWT"}
+    )
+    register_blueprints(api)
+    register_error_handlers(app)  # depois do smorest: substitui o handler de erros dele
 
     from app import models  # noqa: F401  (registra as tabelas para o Alembic)
 

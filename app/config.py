@@ -32,6 +32,11 @@ class Config:
     )
     JWT_REFRESH_TOKEN_EXPIRES = timedelta(days=int(os.environ.get("JWT_REFRESH_TOKEN_DAYS", 7)))
 
+    # Limite de tentativas em login/cadastro (mitiga força bruta). O armazenamento em memória
+    # é por processo; com vários workers use Redis (ex.: redis://...).
+    AUTH_RATE_LIMIT = os.environ.get("AUTH_RATE_LIMIT", "10 per minute")
+    RATELIMIT_STORAGE_URI = os.environ.get("RATELIMIT_STORAGE_URI", "memory://")
+
     # flask-smorest / OpenAPI
     API_TITLE = "Scheduler API"
     API_VERSION = "v1"
@@ -47,6 +52,7 @@ class DevelopmentConfig(Config):
 
 class TestingConfig(Config):
     TESTING = True
+    RATELIMIT_ENABLED = False
     SQLALCHEMY_DATABASE_URI = _database_url("TEST_DATABASE_URL")
     SECRET_KEY = "test-secret-key"  # noqa: S105 - apenas para testes
     JWT_SECRET_KEY = "test-jwt-secret-key-with-at-least-32-bytes"  # noqa: S105
