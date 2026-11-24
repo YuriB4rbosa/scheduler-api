@@ -44,6 +44,13 @@ class NotFoundError(AppError):
     default_code = "NOT_FOUND"
 
 
+class UnprocessableError(AppError):
+    """Entrada sintaticamente válida, mas que viola uma regra de negócio."""
+
+    status_code = 422
+    default_code = "UNPROCESSABLE"
+
+
 class ConflictError(AppError):
     status_code = 409
     default_code = "CONFLICT"

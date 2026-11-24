@@ -29,13 +29,16 @@ def paginate[T](stmt: Select[Any], *, page: int, per_page: int) -> Page[T]:
     )
 
 
-def get_owned_or_404[M](model: type[M], obj_id: int, user_id: int, label: str) -> M:
+def get_owned_or_404[M](
+    model: type[M], obj_id: int, user_id: int, label: str, options: tuple[Any, ...] = ()
+) -> M:
     """Busca um recurso do usuário.
 
     Recurso inexistente e recurso de outro usuário produzem a MESMA resposta (404), para não
     revelar a existência de IDs que não pertencem a quem está perguntando.
     """
-    obj = db.session.scalar(select(model).where(model.id == obj_id, model.user_id == user_id))  # type: ignore[attr-defined]
+    stmt = select(model).where(model.id == obj_id, model.user_id == user_id)  # type: ignore[attr-defined]
+    obj = db.session.scalar(stmt.options(*options))
     if obj is None:
         raise NotFoundError(f"{label} not found.", code=f"{label.upper()}_NOT_FOUND")
     return obj
