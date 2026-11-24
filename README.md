@@ -13,6 +13,18 @@ se sobrepõem no mesmo horário**.
 O foco do projeto é a **qualidade de engenharia**: código em camadas, regras de negócio testadas,
 documentação gerada a partir do código e decisões registradas (com seus trade-offs).
 
+## Demonstração ao vivo
+
+**Swagger (teste direto no navegador):** https://scheduler-api-3mdo.onrender.com/docs
+
+Crie uma conta em `POST /api/v1/auth/register`, faça login em `POST /api/v1/auth/login` e use o botão
+**Authorize** com o `access_token`. Não há dados de demonstração publicados (o seed é bloqueado em
+produção de propósito): cada visitante cria a própria conta.
+
+> Hospedado no plano gratuito do Render: a **primeira requisição após um período parado pode levar cerca
+> de 1 minuto** (o serviço hiberna), e o banco gratuito **expira 30 dias após a criação** (por volta de
+> 24/12/2026). Por isso é uma demonstração, não um ambiente para dados reais.
+
 ## Destaques
 
 - **Conflito de horário à prova de corrida:** validação no service (com mensagem clara) + *exclusion
